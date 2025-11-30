@@ -27,6 +27,9 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 
 ## Usage
 
+> [!WARNING]
+> Some clients do not support env variable, so you may need to replace `${JINA_API_KEY}` below to a hardcoded real API key `jina_xxx`.
+
 For client that supports remote MCP server:
 ```json
 {
@@ -51,7 +54,6 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
       "args": [
         "mcp-remote", 
         "https://mcp.jina.ai/sse"
-        // optional bearer token
         "--header",
         "Authorization: Bearer ${JINA_API_KEY}"
         ]
