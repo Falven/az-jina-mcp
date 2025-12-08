@@ -81,9 +81,11 @@ args = [
     "Authorization: Bearer ${JINA_API_KEY}"]
 ```
 
-## Tool Filtering
+## Tool Filtering before Registering
 
-To reduce token usage, you can filter which tools are exposed via query parameters on the endpoint URL.
+Every MCP tool requires the LLM to pre-allocate tokens in its context window for the tool's name, description, and schema. For LLMs with limited context windows, registering all 17 tools can consume significant space before any actual work begins.
+
+By filtering tools server-side via query parameters on the endpoint URL (`/sse?...`), excluded tools are never registered with the MCP client. The client and LLM never see them, saving context window for what matters.
 
 ### Query Parameters
 
@@ -114,7 +116,7 @@ Filters are applied in this order (highest to lowest priority):
 
 ### Examples
 
-Exclude parallel tools (reduces token usage significantly):
+Exclude parallel tools (saves ~4 tools worth of context tokens):
 ```json
 {
   "mcpServers": {
