@@ -1,0 +1,23 @@
+[project]
+name = "az-jina-mcp"
+version = "0.0.0"
+requires-python = ">=3.13"
+
+[project.scripts]
+build-and-push-reader = "ops.build_and_push_reader:main"
+build-and-push = "ops.build_and_push:main"
+deploy-bootstrap = "ops.deploy_bootstrap:main"
+deploy-workload = "ops.deploy_workload:main"
+
+[tool.uv.workspace]
+members = ["ops"]
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["ops/ops"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
