@@ -78,6 +78,14 @@ locals {
     local.identity_env
   )
 
+  custom_domains = [
+    for domain in var.custom_domains : {
+      name                     = domain.name
+      certificate_id           = domain.certificate_id
+      certificate_binding_type = domain.certificate_binding_type != null ? domain.certificate_binding_type : null
+    }
+  ]
+
   registry_entry = {
     server               = local.registry_login_server
     username             = var.registry_username != "" ? var.registry_username : null
@@ -149,6 +157,7 @@ module "app" {
         ip_range = cidr
       }
     ]
+    custom_domains = local.custom_domains
   }
 
   secrets = local.secret_objects

@@ -234,6 +234,15 @@ variable "dns_record_name" {
   default     = ""
 }
 
+variable "custom_domain" {
+  description = "Optional custom domain configuration for the Container App managed certificate"
+  type = object({
+    hostname         = string
+    certificate_name = optional(string)
+  })
+  default = null
+}
+
 # Backend (bootstrap state) inputs
 variable "state_resource_group_name" {
   description = "State RG name"

@@ -124,6 +124,16 @@ variable "ingress_allowed_cidrs" {
   default     = []
 }
 
+variable "custom_domains" {
+  description = "Optional list of custom domains with certificate bindings"
+  type = list(object({
+    name                     = string
+    certificate_id           = string
+    certificate_binding_type = optional(string)
+  }))
+  default = []
+}
+
 variable "app_settings" {
   description = "Non-secret env vars"
   type        = map(string)

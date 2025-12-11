@@ -69,7 +69,9 @@ locals {
 
   base_secrets = var.secrets
 
-  use_dns_record = var.dns_zone_name != "" && var.dns_zone_resource_group != "" && var.dns_record_name != ""
+  custom_domain     = var.custom_domain
+  use_dns_record    = var.dns_zone_name != "" && var.dns_zone_resource_group != "" && var.dns_record_name != ""
+  use_custom_domain = local.custom_domain != null
 }
 
 data "azurerm_client_config" "current" {}
@@ -130,28 +132,35 @@ locals {
 module "app" {
   source = "../../modules/aca/app"
 
-  rg_name                      = local.rg_name
-  aca_env_id                   = local.aca_env_id
-  location                     = var.location
-  environment_code             = var.environment_code
-  workload_name                = var.workload_name
-  identifier                   = local.identifier
-  subscription_id              = var.subscription_id
-  container_name               = var.container_name
-  container_image              = var.container_image
-  registry_id                  = var.registry_id
-  registry_login_server        = var.registry_login_server
-  registry_username            = var.registry_username
-  registry_password            = var.registry_password
-  target_port                  = var.target_port
-  command                      = var.command
-  args                         = var.args
-  cpu                          = var.cpu
-  memory                       = var.memory
-  min_replicas                 = var.min_replicas
-  max_replicas                 = var.max_replicas
-  ingress_external             = var.ingress_external
-  ingress_allowed_cidrs        = var.ingress_allowed_cidrs
+  rg_name               = local.rg_name
+  aca_env_id            = local.aca_env_id
+  location              = var.location
+  environment_code      = var.environment_code
+  workload_name         = var.workload_name
+  identifier            = local.identifier
+  subscription_id       = var.subscription_id
+  container_name        = var.container_name
+  container_image       = var.container_image
+  registry_id           = var.registry_id
+  registry_login_server = var.registry_login_server
+  registry_username     = var.registry_username
+  registry_password     = var.registry_password
+  target_port           = var.target_port
+  command               = var.command
+  args                  = var.args
+  cpu                   = var.cpu
+  memory                = var.memory
+  min_replicas          = var.min_replicas
+  max_replicas          = var.max_replicas
+  ingress_external      = var.ingress_external
+  ingress_allowed_cidrs = var.ingress_allowed_cidrs
+  custom_domains = local.use_custom_domain ? [
+    {
+      name                     = local.custom_domain.hostname
+      certificate_id           = azapi_resource.managed_certificate[0].id
+      certificate_binding_type = "SniEnabled"
+    }
+  ] : []
   app_settings                 = local.base_app_settings
   secrets                      = local.base_secrets
   secret_environment_overrides = var.secret_environment_overrides
@@ -212,5 +221,21 @@ resource "azurerm_dns_cname_record" "app" {
   zone_name           = data.azurerm_dns_zone.custom_domain[0].name
   resource_group_name = data.azurerm_dns_zone.custom_domain[0].resource_group_name
   ttl                 = 300
-  record              = module.app.app_fqdn
+  record              = module.app.app_base_fqdn
+}
+
+resource "azapi_resource" "managed_certificate" {
+  count = local.use_custom_domain ? 1 : 0
+
+  type      = "Microsoft.App/managedEnvironments/managedCertificates@2024-03-01"
+  name      = local.custom_domain.certificate_name != null && local.custom_domain.certificate_name != "" ? local.custom_domain.certificate_name : replace(local.custom_domain.hostname, ".", "-")
+  parent_id = local.aca_env_id
+  location  = var.location
+
+  body = {
+    properties = {
+      domainControlValidation = "CNAME"
+      subjectName             = local.custom_domain.hostname
+    }
+  }
 }

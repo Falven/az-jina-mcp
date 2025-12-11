@@ -4,8 +4,16 @@ output "app_name" {
 }
 
 output "app_fqdn" {
-  description = "Container App FQDN"
-  value       = module.app.latest_revision_fqdn
+  description = "Container App ingress FQDN (stable, no revision suffix)"
+  value       = module.app.fqdn_url
+}
+
+output "app_base_fqdn" {
+  description = "Container App ingress hostname (no scheme, stable)"
+  value = trim(
+    replace(module.app.fqdn_url, "https://", ""),
+    "/"
+  )
 }
 
 output "identity_id" {
