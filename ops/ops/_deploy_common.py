@@ -39,7 +39,7 @@ def configure_logging() -> None:
 
 def resolve_paths() -> Paths:
     root = repo_root()
-    stacks = root / "terraform" / "stacks"
+    stacks = root / "infra" / "terraform" / "stacks"
     return Paths(
         root=root,
         bootstrap=stacks / "00-bootstrap",
