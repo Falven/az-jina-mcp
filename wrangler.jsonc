@@ -23,9 +23,17 @@
 			"custom_domain": true
 		}
 	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "MCP_OBJECT",
+				"class_name": "MyMCP"
+			}
+		]
+	},
 	"migrations": [
 		{
-			"tag": "v1",
+			"tag": "v2",
 			"deleted_classes": ["MyMCP"]
 		}
 	]
