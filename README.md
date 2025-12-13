@@ -68,12 +68,13 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
 
 For Claude Code:
 
+> [!WARNING]
+> **Upgrading from `/sse`?** If you previously added with `--transport sse`, remove it first with `claude mcp remove -s user jina`, then re-add using the command below.
+
 ```bash
 claude mcp add -s user jina https://mcp.jina.ai/v1 \
   --header "Authorization: Bearer ${JINA_API_KEY}"
 ```
-
-> **Upgrading from `/sse`?** If you previously added with `--transport sse`, remove it first with `claude mcp remove -s user jina`, then re-add using the command above.
 
 For OpenAI Codex: find `~/.codex/config.toml` and add the following:
 ```toml
