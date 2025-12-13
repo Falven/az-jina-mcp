@@ -22,6 +22,12 @@
 			"pattern": "mcp.jina.ai",
 			"custom_domain": true
 		}
+	],
+	"migrations": [
+		{
+			"tag": "v1",
+			"deleted_classes": ["MyMCP"]
+		}
 	]
 	/**
 	 * Smart Placement
