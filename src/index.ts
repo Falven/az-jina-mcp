@@ -1,15 +1,15 @@
-import { McpAgent } from "agents/mcp";
+import { createMcpHandler } from "agents/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerJinaTools } from "./tools/jina-tools.js";
 import { stringify as yamlStringify } from "yaml";
 
 // Build-time constants (can be replaced by build tools)
-const SERVER_VERSION = "1.3.0"; // This could be replaced by CI/CD
+const SERVER_VERSION = "1.4.0"; // Bumped version for stateless rewrite
 const SERVER_NAME = "jina-mcp";
 
 // Tool tags mapping for filtering
 const TOOL_TAGS: Record<string, string[]> = {
-	search: ["search_web", "search_arxiv", "search_ssrn", "search_images"],
+	search: ["search_web", "search_arxiv", "search_ssrn", "search_images", "search_jina_blog"],
 	parallel: ["parallel_search_web", "parallel_search_arxiv", "parallel_search_ssrn", "parallel_read_url"],
 	read: ["read_url", "parallel_read_url", "capture_screenshot_url"],
 	utility: ["primer", "show_api_key", "expand_query", "guess_datetime_url"],
@@ -19,7 +19,7 @@ const TOOL_TAGS: Record<string, string[]> = {
 // All available tools
 const ALL_TOOLS = [
 	"primer", "show_api_key", "read_url", "capture_screenshot_url", "guess_datetime_url",
-	"search_web", "search_arxiv", "search_ssrn", "search_images", "expand_query",
+	"search_web", "search_arxiv", "search_ssrn", "search_images", "search_jina_blog", "expand_query",
 	"parallel_search_web", "parallel_search_arxiv", "parallel_search_ssrn", "parallel_read_url",
 	"sort_by_relevance", "deduplicate_strings", "deduplicate_images"
 ];
@@ -86,42 +86,59 @@ function parseToolFilter(url: URL): Set<string> | null {
 	return enabledTools;
 }
 
-// Define our MCP agent with tools
-export class MyMCP extends McpAgent {
-	server = new McpServer({
+// Props storage for the current request (used by tools)
+let currentProps: Record<string, unknown> = {};
+
+// Create the MCP server instance
+function createServer(enabledTools: Set<string> | null) {
+	const server = new McpServer({
 		name: "Jina AI Official MCP Server",
-		description: "Official MCP for Jina AI API.",
 		version: SERVER_VERSION,
 	});
 
+	// Register all Jina AI tools with optional filtering
+	registerJinaTools(server, () => currentProps, enabledTools);
 
-	async init() {
-		// Register all Jina AI tools with optional filtering
-		const enabledTools = this.props.enabledTools as Set<string> | null;
-		registerJinaTools(this.server, () => this.props, enabledTools);
+	return server;
+}
+
+// Cache servers by their enabled tools configuration
+const serverCache = new Map<string, McpServer>();
+
+function getOrCreateServer(enabledTools: Set<string> | null): McpServer {
+	const cacheKey = enabledTools ? Array.from(enabledTools).sort().join(",") : "all";
+
+	if (!serverCache.has(cacheKey)) {
+		serverCache.set(cacheKey, createServer(enabledTools));
 	}
+
+	return serverCache.get(cacheKey)!;
 }
 
 export default {
-	fetch(request: Request, env: Env, ctx: ExecutionContext) {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
 		const url = new URL(request.url);
 		const cf = request.cf;
 
 		// Parse tool filter from query parameters
 		const enabledTools = parseToolFilter(url);
 
+		// Build props for this request
+		const props: Record<string, unknown> = { enabledTools };
+
 		// Extract bearer token from Authorization header
 		const authHeader = request.headers.get("Authorization");
 		if (authHeader?.startsWith("Bearer ")) {
-			ctx.props = { bearerToken: authHeader.substring(7), enabledTools };
-		} else {
-			ctx.props = { enabledTools };
+			props.bearerToken = authHeader.substring(7);
 		}
 
-		// if no bearer token add a debug one from env 
-		if (!ctx.props.bearerToken && env.JINA_API_KEY) {
-			ctx.props.bearerToken = env.JINA_API_KEY;
+		// if no bearer token add a debug one from env
+		if (!props.bearerToken && env.JINA_API_KEY) {
+			props.bearerToken = env.JINA_API_KEY;
 		}
+
+		// Add Ghost API key for Jina blog search
+		props.ghostApiKey = env.VITE_GHOST_API_KEY;
 
 		// Extract context information for the primer tool
 		const context: any = {};
@@ -175,14 +192,28 @@ export default {
 		if (Object.keys(network).length > 0) context.network = network;
 
 		// Add context to props
-		ctx.props = { ...ctx.props, context };
+		props.context = context;
 
-		if (url.pathname === "/sse" || url.pathname === "/sse/message") {
-			return MyMCP.serveSSE("/sse").fetch(request, env, ctx);
-		}
+		// Set current props for tools to access
+		currentProps = props;
 
-		if (url.pathname === "/mcp") {
-			return MyMCP.serve("/mcp").fetch(request, env, ctx);
+		// Get or create server with the appropriate tool filter
+		const server = getOrCreateServer(enabledTools);
+
+		// Handle MCP endpoints using createMcpHandler (stateless, no Durable Objects)
+		// /v1 is the primary endpoint, /sse is kept for backward compatibility
+		if (url.pathname === "/v1" || url.pathname === "/sse" || url.pathname === "/sse/message") {
+			const route = url.pathname === "/v1" ? "/v1" : "/sse";
+			const handler = createMcpHandler(server, {
+				route,
+				corsOptions: {
+					origin: "*",
+					methods: "GET, POST, DELETE, OPTIONS",
+					headers: "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version",
+				}
+			});
+
+			return handler(request, env, ctx);
 		}
 
 		// Handle root path with helpful information
@@ -197,7 +228,7 @@ export default {
 {
 	"mcpServers": {
 	"jina-mcp-server": {
-		"url": "https://mcp.jina.ai/sse",
+		"url": "https://mcp.jina.ai/v1",
 		"headers": {
 		"Authorization": "Bearer \${JINA_API_KEY}" // optional
 		}
@@ -207,8 +238,8 @@ export default {
 `,
 				get_api_key: "https://jina.ai/api-dashboard/",
 				endpoints: {
-					sse: "/sse - Server-Sent Events endpoint (recommended)",
-					mcp: "/mcp - Standard JSON-RPC endpoint"
+					v1: "/v1 - Primary endpoint",
+					sse: "/sse - Alias for /v1 (backward compatibility)"
 				},
 				tool_filtering: {
 					description: "Reduce token usage by filtering tools via query parameters",
@@ -220,9 +251,9 @@ export default {
 					},
 					tags: TOOL_TAGS,
 					examples: [
-						"/sse?exclude_tags=parallel - Exclude all parallel_* tools",
-						"/sse?include_tags=search,read - Only include search and read tools",
-						"/sse?exclude_tools=search_images,deduplicate_images - Exclude specific tools"
+						"/v1?exclude_tags=parallel - Exclude all parallel_* tools",
+						"/v1?include_tags=search,read - Only include search and read tools",
+						"/v1?exclude_tools=search_images,deduplicate_images - Exclude specific tools"
 					],
 					precedence: "exclude_tools > exclude_tags > include_tools > include_tags"
 				},
@@ -235,6 +266,7 @@ export default {
 					"search_arxiv - Search academic papers on arXiv",
 					"search_ssrn - Search academic papers on SSRN (Social Science Research Network)",
 					"search_images - Search for images across the web (similar to Google Images)",
+					"search_jina_blog - Search Jina AI news at jina.ai/news for articles, tutorials, and announcements",
 					"expand_query - Expand and rewrite search queries based on the query expansion model",
 					"parallel_read_url - Read multiple web pages in parallel for content extraction",
 					"parallel_search_web - Run multiple web searches in parallel for topic coverage and diverse perspectives",
@@ -256,8 +288,8 @@ export default {
 		return new Response(yamlStringify({
 			error: "Endpoint not found",
 			message: `Path '${url.pathname}' is not available`,
-			available_endpoints: ["/", "/sse", "/mcp"],
-			suggestion: "Use /sse for MCP client connections"
+			available_endpoints: ["/", "/v1", "/sse"],
+			suggestion: "Use /v1 for MCP client connections"
 		}), {
 			headers: { "Content-Type": "text/yaml" },
 			status: 404

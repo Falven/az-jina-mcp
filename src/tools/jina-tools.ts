@@ -11,10 +11,12 @@ import {
 	executeArxivSearch,
 	executeSsrnSearch,
 	executeImageSearch,
+	executeJinaBlogSearch,
 	type SearchWebArgs,
 	type SearchArxivArgs,
 	type SearchSsrnArgs,
 	type SearchImageArgs,
+	type SearchJinaBlogArgs,
 	formatSingleSearchResultToContentItems,
 	formatParallelSearchResultsToContentItems
 } from "../utils/search.js";
@@ -473,6 +475,63 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						};
 
 						const results = await executeParallelSearches(uniqueSearches, ssrnSearchFunction, { timeout: 30000 });
+
+						return {
+							content: formatParallelSearchResultsToContentItems(results),
+						};
+					}
+
+					return createErrorResponse("Invalid query format");
+				} catch (error) {
+					return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
+				}
+			},
+		);
+	}
+
+	// Search Jina Blog tool - search Jina AI news/blog posts using Ghost Content API
+	if (isToolEnabled("search_jina_blog")) {
+		server.tool(
+			"search_jina_blog",
+			"Search Jina AI news and blog posts at jina.ai/news for articles about AI, machine learning, neural search, embeddings, and Jina products. Use this to find official Jina documentation, tutorials, product announcements, and technical deep-dives.",
+			{
+				query: z.union([z.string(), z.array(z.string())]).describe("Search terms to find relevant Jina blog posts (e.g., 'embeddings', 'reranker', 'ColBERT'). Can be a single query string or an array of queries for parallel search."),
+				num: z.number().default(30).describe("Maximum number of blog posts to return, between 1-100"),
+				tbs: z.string().optional().describe("Time-based search parameter, e.g., 'qdr:h' for past hour, can be qdr:h, qdr:d, qdr:w, qdr:m, qdr:y")
+			},
+			async ({ query, num, tbs }: { query: string | string[]; num: number; tbs?: string }) => {
+				try {
+					const props = getProps();
+
+					// Get Ghost API key from props (set in index.ts from env)
+					const ghostApiKey = props.ghostApiKey;
+					if (!ghostApiKey) {
+						return createErrorResponse("Ghost API key not configured");
+					}
+
+					// Handle single query or single-element array
+					if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
+						const singleQuery = typeof query === 'string' ? query : query[0];
+						const searchResult = await executeJinaBlogSearch({ query: singleQuery, num, tbs }, ghostApiKey);
+
+						return {
+							content: formatSingleSearchResultToContentItems(searchResult),
+						};
+					}
+
+					// Handle multiple queries with parallel search
+					if (Array.isArray(query) && query.length > 1) {
+						const searches = query.map(q => ({ query: q, num, tbs }));
+
+						const uniqueSearches = searches.filter((search, index, self) =>
+							index === self.findIndex(s => s.query === search.query)
+						);
+
+						const jinaBlogSearchFunction = async (searchArgs: SearchJinaBlogArgs) => {
+							return executeJinaBlogSearch(searchArgs, ghostApiKey);
+						};
+
+						const results = await executeParallelSearches(uniqueSearches, jinaBlogSearchFunction, { timeout: 30000 });
 
 						return {
 							content: formatParallelSearchResultsToContentItems(results),

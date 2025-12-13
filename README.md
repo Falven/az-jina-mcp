@@ -14,6 +14,7 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 | `search_arxiv` | Search academic papers and preprints on arXiv repository via [Reader API](https://jina.ai/reader) | Yes |
 | `search_ssrn` | Search academic papers on SSRN (Social Science Research Network) via [Reader API](https://jina.ai/reader) | Yes |
 | `search_images` | Search for images across the web (similar to Google Images) via [Reader API](https://jina.ai/reader) | Yes |
+| `search_jina_blog` | Search Jina AI news and blog posts at [jina.ai/news](https://jina.ai/news) | No |
 | `expand_query` | Expand and rewrite search queries based on the query expansion model via [Reader API](https://jina.ai/reader) | Yes |
 | `parallel_read_url` | Read multiple web pages in parallel for efficient content extraction via [Reader API](https://jina.ai/reader) | Optional* |
 | `parallel_search_web` | Run multiple web searches in parallel for comprehensive topic coverage and diverse perspectives via [Reader API](https://jina.ai/reader) | Yes |
@@ -30,12 +31,15 @@ A remote Model Context Protocol (MCP) server that provides access to Jina Reader
 > [!WARNING]
 > Some clients do not support env variable, so you may need to replace `${JINA_API_KEY}` below to a hardcoded real API key `jina_xxx`.
 
+> [!NOTE]
+> The server uses [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) transport (MCP spec 2025-03-26). The `/sse` endpoint is kept as an alias for backward compatibility. See [FAQ](#why-is-the-endpoint-called-sse-but-using-streamable-http) for details.
+
 For client that supports remote MCP server:
 ```json
 {
   "mcpServers": {
     "jina-mcp-server": {
-      "url": "https://mcp.jina.ai/sse",
+      "url": "https://mcp.jina.ai/v1",
       "headers": {
         "Authorization": "Bearer ${JINA_API_KEY}" // optional
       }
@@ -52,8 +56,8 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
     "jina-mcp-server": {
       "command": "npx",
       "args": [
-        "mcp-remote", 
-        "https://mcp.jina.ai/sse"
+        "mcp-remote",
+        "https://mcp.jina.ai/v1"
         "--header",
         "Authorization: Bearer ${JINA_API_KEY}"
         ]
@@ -65,8 +69,8 @@ For client that does not support remote MCP server yet, you need [`mcp-remote`](
 For Claude Code:
 
 ```bash
-claude mcp add --transport sse jina https://mcp.jina.ai/sse \
-  --header "Authorization : Bearer ${JINA_API_KEY}"
+claude mcp add jina https://mcp.jina.ai/v1 \
+  --header "Authorization: Bearer ${JINA_API_KEY}"
 ```
 
 For OpenAI Codex: find `~/.codex/config.toml` and add the following:
@@ -76,16 +80,16 @@ command = "npx"
 args = [
     "-y",
     "mcp-remote",
-    "https://mcp.jina.ai/sse",
+    "https://mcp.jina.ai/v1",
     "--header",
     "Authorization: Bearer ${JINA_API_KEY}"]
 ```
 
 ## Tool Filtering before Registering
 
-Every MCP tool requires the LLM to pre-allocate tokens in its context window for the tool's name, description, and schema. For LLMs with limited context windows, registering all 17 tools can consume significant space before any actual work begins.
+Every MCP tool requires the LLM to pre-allocate tokens in its context window for the tool's name, description, and schema. For LLMs with limited context windows, registering all 18 tools can consume significant space before any actual work begins.
 
-By filtering tools server-side via query parameters on the endpoint URL (`/sse?...`), excluded tools are never registered with the MCP client. The client and LLM never see them, saving context window for what matters.
+By filtering tools server-side via query parameters on the endpoint URL (`/v1?...`), excluded tools are never registered with the MCP client. The client and LLM never see them, saving context window for what matters.
 
 ### Query Parameters
 
@@ -100,7 +104,7 @@ By filtering tools server-side via query parameters on the endpoint URL (`/sse?.
 
 | Tag | Tools |
 |-----|-------|
-| `search` | search_web, search_arxiv, search_ssrn, search_images |
+| `search` | search_web, search_arxiv, search_ssrn, search_images, search_jina_blog |
 | `parallel` | parallel_search_web, parallel_search_arxiv, parallel_search_ssrn, parallel_read_url |
 | `read` | read_url, parallel_read_url, capture_screenshot_url |
 | `utility` | primer, show_api_key, expand_query, guess_datetime_url |
@@ -121,7 +125,7 @@ Exclude parallel tools (saves ~4 tools worth of context tokens):
 {
   "mcpServers": {
     "jina-mcp-server": {
-      "url": "https://mcp.jina.ai/sse?exclude_tags=parallel",
+      "url": "https://mcp.jina.ai/v1?exclude_tags=parallel",
       "headers": {
         "Authorization": "Bearer ${JINA_API_KEY}"
       }
@@ -135,7 +139,7 @@ Only include search and read tools:
 {
   "mcpServers": {
     "jina-mcp-server": {
-      "url": "https://mcp.jina.ai/sse?include_tags=search,read",
+      "url": "https://mcp.jina.ai/v1?include_tags=search,read",
       "headers": {
         "Authorization": "Bearer ${JINA_API_KEY}"
       }
@@ -149,7 +153,7 @@ Exclude specific tools:
 {
   "mcpServers": {
     "jina-mcp-server": {
-      "url": "https://mcp.jina.ai/sse?exclude_tools=search_images,deduplicate_images",
+      "url": "https://mcp.jina.ai/v1?exclude_tools=search_images,deduplicate_images",
       "headers": {
         "Authorization": "Bearer ${JINA_API_KEY}"
       }
@@ -183,7 +187,7 @@ Cursor and Claude Desktop (Windows) [have a bug](https://www.npmjs.com/package/m
   // rest of config...
   "args": [
     "mcp-remote",
-    "https://mcp.jina.ai/sse",
+    "https://mcp.jina.ai/v1",
     "--header",
     "Authorization:${AUTH_HEADER}" // note no spaces around ':'
   ],
@@ -219,6 +223,17 @@ Claude Code, Claude Desktop, and Cursor enforce a fixed 25k token limit on MCP t
 
 Claude Code recently started preferring `parallel_*` tools (like `parallel_search_web`, `parallel_read_url`) for concurrent operations. However, models like Qwen3-Next prefer calling singleton tools with multiple queries in an array. Both approaches work: the singleton versions (`search_web`, `search_arxiv`, `search_ssrn`, `read_url`) accept either a single string or an array of strings for the query/url parameter. When given an array, these tools automatically execute all queries in parallel internally, producing the same concurrent behavior as explicitly calling `parallel_*` tools. Use whichever style your model prefers.
 
+### Why is the endpoint called /sse but using Streamable HTTP?
+
+The `/sse` endpoint URL is kept for backward compatibility with existing users. The recommended endpoint is now `/v1`. Both use the same **Streamable HTTP** transport (the new MCP standard from spec 2025-03-26), not the deprecated SSE transport.
+
+This works seamlessly because:
+- **Claude Desktop, Cursor, Windsurf** use `mcp-remote` which defaults to `http-first` strategy (tries Streamable HTTP first)
+- **Claude Code** has native support for both transports
+- **LM Studio** supports direct connection to Streamable HTTP endpoints
+
+The response streaming still uses SSE format (`Content-Type: text/event-stream`), but the protocol layer (session management, initialization) follows Streamable HTTP spec. All major MCP clients are compatible.
+
 ### Alternative: Client-side tool filtering with mcp-remote
 
 If you're using [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) as a local proxy, you can also filter tools client-side using its `--ignore-tool` flag:
@@ -230,7 +245,7 @@ If you're using [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) as a lo
       "command": "npx",
       "args": [
         "mcp-remote",
-        "https://mcp.jina.ai/sse",
+        "https://mcp.jina.ai/v1",
         "--header",
         "Authorization: Bearer ${JINA_API_KEY}",
         "--ignore-tool", "parallel_search_web",
@@ -242,7 +257,7 @@ If you're using [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) as a lo
 }
 ```
 
-This approach filters tools at the proxy level before they reach the MCP client. However, server-side filtering via query parameters (see [Tool Filtering](#tool-filtering)) is more efficient as it reduces token usage from the source.
+This approach filters tools at the proxy level before they reach the MCP client. However, server-side filtering via query parameters (see [Tool Filtering](#tool-filtering-before-registering)) is more efficient as it reduces token usage from the source.
 
 ## Developer Guide
 
@@ -264,4 +279,4 @@ npm run start
 
 [![Deploy to Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jina-ai/MCP)
 
-This will deploy your MCP server to a URL like: `jina-mcp-server.<your-account>.workers.dev/sse`
+This will deploy your MCP server to a URL like: `jina-mcp-server.<your-account>.workers.dev/v1`
