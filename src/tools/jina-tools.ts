@@ -1114,9 +1114,10 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 			{
 				id: z.string().optional().describe("arXiv paper ID (e.g., '2301.12345' or 'hep-th/9901001'). Either id or url is required."),
 				url: z.string().url().optional().describe("Direct PDF URL. Either id or url is required."),
-				max_edge: z.number().default(1024).describe("Maximum edge size for extracted images in pixels (default: 1024)")
+				max_edge: z.number().default(1024).describe("Maximum edge size for extracted images in pixels (default: 1024)"),
+				type: z.string().optional().describe("Filter by float types (comma-separated): figure, table, equation. If not specified, returns all types.")
 			},
-			async ({ id, url, max_edge }: { id?: string; url?: string; max_edge: number }) => {
+			async ({ id, url, max_edge, type }: { id?: string; url?: string; max_edge: number; type?: string }) => {
 				try {
 					const props = getProps();
 
@@ -1134,6 +1135,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					if (id) requestBody.id = id;
 					if (url) requestBody.url = url;
 					if (max_edge) requestBody.max_edge = max_edge;
+					if (type) requestBody.type = type;
 
 					const response = await fetch('https://svip.jina.ai/extract-pdf', {
 						method: 'POST',
@@ -1170,22 +1172,33 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						};
 					};
 
+					// Limit floats to prevent large responses
+					const maxFloats = 20;
+					const totalFloats = data.floats.length;
+					const floatsToReturn = data.floats.slice(0, maxFloats);
+
 					// Return each float as an image with metadata
 					const contentItems: Array<{ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }> = [];
 
 					// Add summary metadata
+					const summaryMeta: Record<string, any> = {
+						id: data.id,
+						num_floats: data.meta.num_floats,
+						num_pages: data.meta.num_pages,
+						latency_ms: data.meta.latency
+					};
+					if (totalFloats > maxFloats) {
+						summaryMeta.returned_floats = maxFloats;
+						summaryMeta.truncated = true;
+						summaryMeta.note = `Showing first ${maxFloats} of ${totalFloats} floats. Use 'type' parameter to filter by specific types.`;
+					}
 					contentItems.push({
 						type: "text" as const,
-						text: yamlStringify({
-							id: data.id,
-							num_floats: data.meta.num_floats,
-							num_pages: data.meta.num_pages,
-							latency_ms: data.meta.latency
-						}),
+						text: yamlStringify(summaryMeta),
 					});
 
 					// Add each float as an image with its metadata
-					for (const float of data.floats) {
+					for (const float of floatsToReturn) {
 						// Add metadata for this float
 						contentItems.push({
 							type: "text" as const,
