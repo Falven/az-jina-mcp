@@ -210,6 +210,7 @@ export default {
 					origin: "*",
 					methods: "GET, POST, DELETE, OPTIONS",
 					headers: "Content-Type, Accept, Authorization, mcp-session-id, MCP-Protocol-Version",
+					exposeHeaders: "mcp-session-id",
 				}
 			});
 
