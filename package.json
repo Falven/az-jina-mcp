@@ -1,18 +1,21 @@
 {
-	"name": "jina-mcp",
+	"name": "az-jina-mcp",
 	"version": "1.4.0",
+	"packageManager": "pnpm@10.30.3",
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"format": "biome format --write",
+		"image:build": "cd ../.. && uv run build-and-push-image datacontrol/az-jina-mcp ${VERSION:-$npm_package_version} apps/az-jina-mcp/Dockerfile",
 		"lint:fix": "biome lint --fix",
+		"start:aca": "wrangler dev --local --ip 0.0.0.0 --port ${PORT:-8080} --var MCP_SEARCH_BASE:${MCP_SEARCH_BASE:?MCP_SEARCH_BASE is required} --var MCP_READER_BASE:${MCP_READER_BASE:?MCP_READER_BASE is required} --var API_BASE_URL:${API_BASE_URL:?API_BASE_URL is required}",
 		"start": "wrangler dev",
 		"cf-typegen": "wrangler types",
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@modelcontextprotocol/sdk": "^1.24.3",
+		"@modelcontextprotocol/sdk": "1.25.2",
 		"agents": "^0.3.6",
 		"yaml": "^2.8.1",
 		"zod": "^3.25.67"

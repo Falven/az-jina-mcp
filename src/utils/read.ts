@@ -34,6 +34,7 @@ export type ReadUrlResponse = ReadUrlResult | ReadUrlError;
  */
 export async function readUrlFromConfig(
     urlConfig: ReadUrlConfig,
+    readerApiBaseUrl: string,
     bearerToken?: string
 ): Promise<ReadUrlResponse> {
     try {
@@ -64,7 +65,7 @@ export async function readUrlFromConfig(
             headers['X-Retain-Images'] = 'none';
         }
 
-        const response = await fetch('https://r.jina.ai/', {
+        const response = await fetch(readerApiBaseUrl, {
             method: 'POST',
             headers,
             body: JSON.stringify({ url: normalizedUrl }),
@@ -118,14 +119,15 @@ export async function readUrlFromConfig(
  */
 export async function executeParallelUrlReads(
     urlConfigs: ReadUrlConfig[],
-    bearerToken?: string,
-    timeout: number = 30000
+    readerApiBaseUrl: string,
+    timeout: number = 30000,
+    bearerToken?: string
 ): Promise<ReadUrlResponse[]> {
     const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Parallel URL read timeout')), timeout)
     );
 
-    const readPromises = urlConfigs.map(urlConfig => readUrlFromConfig(urlConfig, bearerToken));
+    const readPromises = urlConfigs.map(urlConfig => readUrlFromConfig(urlConfig, readerApiBaseUrl, bearerToken));
 
     return Promise.race([
         Promise.all(readPromises),

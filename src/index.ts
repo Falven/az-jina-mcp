@@ -154,6 +154,17 @@ export default {
 		const url = new URL(request.url);
 		const cf = request.cf;
 
+		// Fast in-process health endpoint for container probes.
+		if (url.pathname === "/healthz") {
+			return new Response(JSON.stringify({ status: "ok" }), {
+				headers: {
+					"Content-Type": "application/json",
+					"Cache-Control": "no-store",
+				},
+				status: 200,
+			});
+		}
+
 		// Parse tool filter from query parameters
 		const enabledTools = parseToolFilter(url);
 
@@ -175,7 +186,9 @@ export default {
 		props.ghostApiKey = env.VITE_GHOST_API_KEY;
 
 		// API base URL for embedding/reranker endpoints (bypasses Cloudflare proxy issues)
-		props.apiBaseUrl = env.API_BASE_URL || 'https://api.jina.ai';
+		props.apiBaseUrl = env.API_BASE_URL || (() => { throw new Error("Missing required worker binding: API_BASE_URL"); })();
+		props.searchBaseUrl = env.MCP_SEARCH_BASE || (() => { throw new Error("Missing required worker binding: MCP_SEARCH_BASE"); })();
+		props.readerBaseUrl = env.MCP_READER_BASE || (() => { throw new Error("Missing required worker binding: MCP_READER_BASE"); })();
 
 		// Extract context information for the primer tool
 		const context: any = {};

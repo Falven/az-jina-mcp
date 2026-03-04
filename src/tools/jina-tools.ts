@@ -127,7 +127,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						headers['Authorization'] = `Bearer ${props.bearerToken}`;
 					}
 
-					const response = await fetch('https://r.jina.ai/', {
+					const response = await fetch(props.readerBaseUrl, {
 						method: 'POST',
 						headers,
 						body: JSON.stringify({ url }),
@@ -202,18 +202,18 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						const { readUrlFromConfig } = await import("../utils/read.js");
 
 						// Use the shared utility function
-						const result = await readUrlFromConfig({ url: singleUrl, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }, props.bearerToken);
+						const result = await readUrlFromConfig({ url: singleUrl, withAllLinks: withAllLinks || false, withAllImages: withAllImages || false }, props.readerBaseUrl, props.bearerToken);
 
 						if ('error' in result) {
 							return createErrorResponse(result.error);
 						}
 
-						return applyTokenGuardrail({
-							content: [{
-								type: "text" as const,
-								text: yamlStringify(result.structuredData),
-							}],
-						}, props.bearerToken, getClientName(), props.apiBaseUrl);
+							return applyTokenGuardrail({
+								content: [{
+									type: "text" as const,
+									text: yamlStringify(result.structuredData),
+								}],
+							}, props.bearerToken, props.apiBaseUrl, getClientName());
 					}
 
 					// Handle multiple URLs with parallel reading
@@ -228,7 +228,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						const { executeParallelUrlReads } = await import("../utils/read.js");
 
 						// Execute parallel URL reads using the utility
-						const results = await executeParallelUrlReads(uniqueUrls, props.bearerToken, 30000);
+						const results = await executeParallelUrlReads(uniqueUrls, props.readerBaseUrl, 30000, props.bearerToken);
 
 						// Format results for consistent output
 						const contentItems: Array<{ type: 'text'; text: string }> = [];
@@ -247,9 +247,9 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 							}
 						}
 
-						return applyTokenGuardrail({
-							content: contentItems,
-						}, props.bearerToken, getClientName(), props.apiBaseUrl);
+							return applyTokenGuardrail({
+								content: contentItems,
+							}, props.bearerToken, props.apiBaseUrl, getClientName());
 					}
 
 					return createErrorResponse("Invalid URL format");
@@ -285,7 +285,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					// Handle single query or single-element array
 					if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
 						const singleQuery = typeof query === 'string' ? query : query[0];
-						const searchResult = await executeWebSearch({ query: singleQuery, num, tbs, location, gl, hl }, props.bearerToken);
+						const searchResult = await executeWebSearch({ query: singleQuery, num, tbs, location, gl, hl }, props.searchBaseUrl, props.bearerToken);
 
 						return {
 							content: formatSingleSearchResultToContentItems(searchResult),
@@ -301,7 +301,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						);
 
 						const webSearchFunction = async (searchArgs: SearchWebArgs) => {
-							return executeWebSearch(searchArgs, props.bearerToken);
+							return executeWebSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 						};
 
 						const results = await executeParallelSearches(uniqueSearches, webSearchFunction, { timeout: 30000 });
@@ -336,7 +336,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						return tokenError;
 					}
 
-					const response = await fetch('https://svip.jina.ai/', {
+					const response = await fetch(props.searchBaseUrl, {
 						method: 'POST',
 						headers: {
 							'Accept': 'application/json',
@@ -399,7 +399,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					// Handle single query or single-element array
 					if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
 						const singleQuery = typeof query === 'string' ? query : query[0];
-						const searchResult = await executeArxivSearch({ query: singleQuery, num, tbs }, props.bearerToken);
+						const searchResult = await executeArxivSearch({ query: singleQuery, num, tbs }, props.searchBaseUrl, props.bearerToken);
 
 						return {
 							content: formatSingleSearchResultToContentItems(searchResult),
@@ -415,7 +415,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						);
 
 						const arxivSearchFunction = async (searchArgs: SearchArxivArgs) => {
-							return executeArxivSearch(searchArgs, props.bearerToken);
+							return executeArxivSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 						};
 
 						const results = await executeParallelSearches(uniqueSearches, arxivSearchFunction, { timeout: 30000 });
@@ -455,7 +455,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					// Handle single query or single-element array
 					if (typeof query === 'string' || (Array.isArray(query) && query.length === 1)) {
 						const singleQuery = typeof query === 'string' ? query : query[0];
-						const searchResult = await executeSsrnSearch({ query: singleQuery, num, tbs }, props.bearerToken);
+						const searchResult = await executeSsrnSearch({ query: singleQuery, num, tbs }, props.searchBaseUrl, props.bearerToken);
 
 						return {
 							content: formatSingleSearchResultToContentItems(searchResult),
@@ -471,7 +471,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						);
 
 						const ssrnSearchFunction = async (searchArgs: SearchSsrnArgs) => {
-							return executeSsrnSearch(searchArgs, props.bearerToken);
+							return executeSsrnSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 						};
 
 						const results = await executeParallelSearches(uniqueSearches, ssrnSearchFunction, { timeout: 30000 });
@@ -568,7 +568,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 						return tokenError;
 					}
 
-					const searchResult = await executeImageSearch({ query, return_url, tbs, location, gl, hl }, props.bearerToken);
+					const searchResult = await executeImageSearch({ query, return_url, tbs, location, gl, hl }, props.searchBaseUrl, props.bearerToken);
 
 					if ('error' in searchResult) {
 						return createErrorResponse(searchResult.error);
@@ -663,7 +663,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 
 					// Use the common web search function
 					const webSearchFunction = async (searchArgs: SearchWebArgs) => {
-						return executeWebSearch(searchArgs, props.bearerToken);
+						return executeWebSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 					};
 
 					// Execute parallel searches using utility
@@ -707,7 +707,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 
 					// Use the common arXiv search function
 					const arxivSearchFunction = async (searchArgs: SearchArxivArgs) => {
-						return executeArxivSearch(searchArgs, props.bearerToken);
+						return executeArxivSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 					};
 
 					// Execute parallel searches using utility
@@ -751,7 +751,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 
 					// Use the common SSRN search function
 					const ssrnSearchFunction = async (searchArgs: SearchSsrnArgs) => {
-						return executeSsrnSearch(searchArgs, props.bearerToken);
+						return executeSsrnSearch(searchArgs, props.searchBaseUrl, props.bearerToken);
 					};
 
 					// Execute parallel searches using utility
@@ -792,7 +792,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					const { executeParallelUrlReads } = await import("../utils/read.js");
 
 					// Execute parallel URL reads using the utility
-					const results = await executeParallelUrlReads(uniqueUrls, props.bearerToken, timeout);
+					const results = await executeParallelUrlReads(uniqueUrls, props.readerBaseUrl, timeout, props.bearerToken);
 
 					// Format results for consistent output
 					const contentItems: Array<{ type: 'text'; text: string }> = [];
@@ -813,7 +813,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 
 					return applyTokenGuardrail({
 						content: contentItems,
-					}, props.bearerToken, getClientName(), props.apiBaseUrl);
+					}, props.bearerToken, props.apiBaseUrl, getClientName());
 				} catch (error) {
 					return createErrorResponse(`Error: ${error instanceof Error ? error.message : String(error)}`);
 				}
@@ -1186,7 +1186,7 @@ export function registerJinaTools(server: McpServer, getProps: () => any, enable
 					if (max_edge) requestBody.max_edge = max_edge;
 					if (type) requestBody.type = type;
 
-					const response = await fetch('https://svip.jina.ai/extract-pdf', {
+					const response = await fetch(`${props.searchBaseUrl}extract-pdf`, {
 						method: 'POST',
 						headers: {
 							'Accept': 'application/json',

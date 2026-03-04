@@ -66,10 +66,11 @@ export interface ParallelSearchOptions {
  */
 export async function executeWebSearch(
     searchArgs: SearchWebArgs,
+    searchApiBaseUrl: string,
     bearerToken: string
 ): Promise<SearchResultOrError> {
     try {
-        const response = await fetch('https://svip.jina.ai/', {
+        const response = await fetch(searchApiBaseUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -102,10 +103,11 @@ export async function executeWebSearch(
  */
 export async function executeArxivSearch(
     searchArgs: SearchArxivArgs,
+    searchApiBaseUrl: string,
     bearerToken: string
 ): Promise<SearchResultOrError> {
     try {
-        const response = await fetch('https://svip.jina.ai/', {
+        const response = await fetch(searchApiBaseUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -136,10 +138,11 @@ export async function executeArxivSearch(
  */
 export async function executeSsrnSearch(
     searchArgs: SearchSsrnArgs,
+    searchApiBaseUrl: string,
     bearerToken: string
 ): Promise<SearchResultOrError> {
     try {
-        const response = await fetch('https://svip.jina.ai/', {
+        const response = await fetch(searchApiBaseUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
@@ -268,10 +271,11 @@ export async function executeJinaBlogSearch(
  */
 export async function executeImageSearch(
     searchArgs: SearchImageArgs,
+    searchApiBaseUrl: string,
     bearerToken: string
 ): Promise<SearchResultOrError> {
     try {
-        const response = await fetch('https://svip.jina.ai/', {
+        const response = await fetch(searchApiBaseUrl, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',

@@ -7,8 +7,8 @@ const MAX_TOKENS = 25000;
 // Clients known to have 25k token limit on MCP tool responses
 const GUARDRAIL_CLIENTS = [
     'claude-code',
-    'claude-ai',      // Claude Desktop
-    'cursor-vscode',  // Cursor
+    'claude-ai', // Claude Desktop
+    'cursor-vscode', // Cursor
 ];
 
 type TextContentItem = { type: 'text'; text: string };
@@ -23,7 +23,11 @@ interface TokenCountResult {
 /**
  * Count tokens using Jina Segment API
  */
-async function countTokens(content: string, bearerToken: string, apiBaseUrl: string = 'https://api.jina.ai'): Promise<number> {
+async function countTokens(
+    content: string,
+    bearerToken: string,
+    apiBaseUrl: string,
+): Promise<number> {
     try {
         const response = await fetch(`${apiBaseUrl}/v1/segment`, {
             method: 'POST',
@@ -39,7 +43,7 @@ async function countTokens(content: string, bearerToken: string, apiBaseUrl: str
             return Math.ceil(content.length / 4);
         }
 
-        const data = await response.json() as TokenCountResult;
+        const data = (await response.json()) as TokenCountResult;
         return data.num_tokens;
     } catch {
         // Fallback: rough estimate
@@ -55,11 +59,13 @@ async function countTokens(content: string, bearerToken: string, apiBaseUrl: str
 async function truncateContentItems(
     contentItems: ContentItem[],
     bearerToken: string,
+    apiBaseUrl: string,
     maxTokens: number = MAX_TOKENS,
-    apiBaseUrl: string = 'https://api.jina.ai'
 ): Promise<ContentItem[]> {
     const textItems = contentItems.filter((item): item is TextContentItem => item.type === 'text');
-    const nonTextItems = contentItems.filter((item): item is ImageContentItem => item.type !== 'text');
+    const nonTextItems = contentItems.filter(
+        (item): item is ImageContentItem => item.type !== 'text',
+    );
 
     if (textItems.length === 0) {
         return contentItems;
@@ -82,8 +88,8 @@ async function truncateContentItems(
             ...nonTextItems,
             {
                 type: 'text',
-                text: item.text.substring(0, truncatedLength)
-            }
+                text: item.text.substring(0, truncatedLength),
+            },
         ];
     }
 
@@ -121,8 +127,8 @@ export function shouldApplyGuardrail(clientName: string | undefined): boolean {
 export async function applyTokenGuardrail(
     response: { content: ContentItem[]; isError?: boolean },
     bearerToken: string,
+    apiBaseUrl: string,
     clientName?: string,
-    apiBaseUrl: string = 'https://api.jina.ai'
 ): Promise<{ content: ContentItem[]; isError?: boolean }> {
     // Skip guardrail if not a known limited client
     if (!shouldApplyGuardrail(clientName)) {
@@ -136,13 +142,13 @@ export async function applyTokenGuardrail(
     const truncatedContent = await truncateContentItems(
         response.content,
         bearerToken,
+        apiBaseUrl,
         MAX_TOKENS,
-        apiBaseUrl
     );
 
     return {
         ...response,
-        content: truncatedContent
+        content: truncatedContent,
     };
 }
 
@@ -150,7 +156,4 @@ export async function applyTokenGuardrail(
  * List of tool names that should have token guardrail applied
  * Focus on tools that return full content (not just snippets/metadata)
  */
-export const GUARDRAIL_TOOLS = [
-    'read_url',
-    'parallel_read_url',
-];
+export const GUARDRAIL_TOOLS = ['read_url', 'parallel_read_url'];
